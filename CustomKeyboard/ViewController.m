@@ -13,6 +13,7 @@
 @property(nonatomic,strong)UITextField *textFiled;
 
 @property(nonatomic,strong)UIView *keyView;
+@property(nonatomic,strong)UIView *tempKeyView;
 
 @property(nonatomic,strong)NSMutableArray *letterArr;
 @property(nonatomic,strong)NSMutableArray *numberArr;
@@ -51,27 +52,29 @@
     
     [self.view addSubview:self.textFiled];
     
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardDidShow) name:UIKeyboardDidShowNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardDidShow:) name:UIKeyboardDidShowNotification object:nil];
     
     self.numberArr = [self setRandomNumber];
     self.letterArr = [self setRandomLetter];
     
 }
 
-- (void)keyboardDidShow{
+- (void)keyboardDidShow:(NSNotification *)notification{
+    // 清空keyView后再重绘 否则在退出后台或横竖屏键盘会乱序
+    self.keyView = nil;
     
-    UIView *keyboardView = [self getKeyboardView];
+    self.tempKeyView = [self getKeyboardView];
+    [self.tempKeyView addSubview:self.keyView];
     
-    [keyboardView addSubview:self.keyView];
-    
-    self.keyView.frame = keyboardView.frame;
-    self.keyView.backgroundColor = [UIColor lightGrayColor];
+    self.keyView.frame = self.tempKeyView.frame;
+    self.keyView.backgroundColor = [UIColor grayColor];
     
     [self setUpKeyboard];
 }
 
+
+// 外部获取密码接口
 - (NSString *)getPassword{
-    self.password = self.textFiled.text;
     return self.password;
 }
 
@@ -117,9 +120,9 @@
     CGFloat keyboardLW = [UIScreen mainScreen].bounds.size.width;
     
     // 按键的颜色、大小
-    UIColor *keyColor = [UIColor darkGrayColor];
+    UIColor *keyColor = [UIColor whiteColor];
     UIColor *keyTitleColor = [UIColor blackColor];
-    UIColor *keyTitleHLightedColor = [UIColor whiteColor];
+    UIColor *keyTitleHLightedColor = [UIColor grayColor];
     CGFloat keyWithNumLetterW = (keyboardLW-55)/10.0;
     CGFloat keyWithNumLetterH = keyboardLH - 8.0;
     CGFloat keyWithOtherW = keyboardLW/6.0 - 8.0;
@@ -154,7 +157,7 @@
     completeBtn.layer.cornerRadius = keyCornerRadius;
     completeBtn.tag = indexWithOther;
     indexWithOther ++;
-    [completeBtn addTarget:self action:@selector(getPassword) forControlEvents:UIControlEventTouchUpInside];
+    [completeBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
     [completeBtn addTarget:self action:@selector(touchesBegan:withEvent:) forControlEvents:UIControlEventTouchUpInside];
     [self.keyView addSubview:completeBtn];
     
@@ -282,14 +285,14 @@
     numberBtn.layer.cornerRadius = keyCornerRadius;
     numberBtn.tag = indexWithOther;
     indexWithOther ++;
-#warning ----添加方法
+    [numberBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
     
     [self.keyView addSubview:numberBtn];
     
-    // 第六行 全球键
+    // 第六行 (全球键)切换系统键盘
     UIButton *globalBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     globalBtn.frame = CGRectMake(keyWithNumLetterW/2.0+keyWithNumLetterW+10, keyboardLH*5.0+4, keyWithNumLetterW+keyWithNumLetterW/2.0, keyWithOtherH);
-    [globalBtn setTitle:@"⭕️" forState:UIControlStateNormal];
+    [globalBtn setTitle:@"ooo" forState:UIControlStateNormal];
     globalBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
     [globalBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
     [globalBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
@@ -297,7 +300,7 @@
     globalBtn.layer.cornerRadius = keyCornerRadius;
     globalBtn.tag = indexWithOther;
     indexWithOther ++;
-#warning ----添加方法
+    [globalBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
     
     [self.keyView addSubview:globalBtn];
     // 第六行 空格键
@@ -323,7 +326,7 @@
     symbolBtn.backgroundColor = keyColor;
     symbolBtn.layer.cornerRadius = keyCornerRadius;
     symbolBtn.tag = indexWithOther;
-#warning ----添加方法
+    [symbolBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
     
     [self.keyView addSubview:symbolBtn];
     
@@ -339,7 +342,8 @@
         [self.textFiled resignFirstResponder];
     }
     if (sender.tag == 1) {// 完成事件
-        
+        self.password = self.textFiled.text;
+        NSLog(@"%@", self.password);
     }
     if (sender.tag == 2) {// 切换大小写事件
         if (self.letterState) {// 大写
@@ -350,7 +354,7 @@
                 [self.letterArr insertObject:capitalLetter atIndex:i];
             }
             self.letterState = 0;
-            [self keyboardDidShow];
+            [self keyboardDidShow:nil];
         }
         else {// 小写
             for (NSInteger i = 0; i < 26; i ++) {
@@ -360,7 +364,7 @@
                 [self.letterArr insertObject:capitalLetter atIndex:i];
             }
             self.letterState = 1;
-            [self keyboardDidShow];
+            [self keyboardDidShow:nil];
         }
     }
     if (sender.tag == 3) {// 删除事件
@@ -411,7 +415,6 @@
     }
     return nil;
 }
-
 
 
 - (void)didReceiveMemoryWarning {
