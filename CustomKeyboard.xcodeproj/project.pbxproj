@@ -15,6 +15,7 @@
 		423D445E1DC222E8009B1F28 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 423D445C1DC222E8009B1F28 /* LaunchScreen.storyboard */; };
 		423D44691DC222E9009B1F28 /* CustomKeyboardTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 423D44681DC222E9009B1F28 /* CustomKeyboardTests.m */; };
 		423D44741DC222E9009B1F28 /* CustomKeyboardUITests.m in Sources */ = {isa = PBXBuildFile; fileRef = 423D44731DC222E9009B1F28 /* CustomKeyboardUITests.m */; };
+		4292E04B1DEE54C900119B37 /* CustomKeyboard.m in Sources */ = {isa = PBXBuildFile; fileRef = 4292E04A1DEE54C900119B37 /* CustomKeyboard.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,8 @@
 		423D446F1DC222E9009B1F28 /* CustomKeyboardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CustomKeyboardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		423D44731DC222E9009B1F28 /* CustomKeyboardUITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CustomKeyboardUITests.m; sourceTree = "<group>"; };
 		423D44751DC222E9009B1F28 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4292E0491DEE54C900119B37 /* CustomKeyboard.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CustomKeyboard.h; sourceTree = "<group>"; };
+		4292E04A1DEE54C900119B37 /* CustomKeyboard.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CustomKeyboard.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,6 +108,8 @@
 				423D44521DC222E8009B1F28 /* AppDelegate.m */,
 				423D44541DC222E8009B1F28 /* ViewController.h */,
 				423D44551DC222E8009B1F28 /* ViewController.m */,
+				4292E0491DEE54C900119B37 /* CustomKeyboard.h */,
+				4292E04A1DEE54C900119B37 /* CustomKeyboard.m */,
 				423D44571DC222E8009B1F28 /* Main.storyboard */,
 				423D445A1DC222E8009B1F28 /* Assets.xcassets */,
 				423D445C1DC222E8009B1F28 /* LaunchScreen.storyboard */,
@@ -277,6 +282,7 @@
 				423D44561DC222E8009B1F28 /* ViewController.m in Sources */,
 				423D44531DC222E8009B1F28 /* AppDelegate.m in Sources */,
 				423D44501DC222E8009B1F28 /* main.m in Sources */,
+				4292E04B1DEE54C900119B37 /* CustomKeyboard.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -425,6 +431,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = B3XEHWV42U;
 				INFOPLIST_FILE = CustomKeyboard/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.beichende.CustomKeyboard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -437,6 +444,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = B3XEHWV42U;
 				INFOPLIST_FILE = CustomKeyboard/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.beichende.CustomKeyboard;
 				PRODUCT_NAME = "$(TARGET_NAME)";

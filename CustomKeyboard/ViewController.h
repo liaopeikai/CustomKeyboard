@@ -10,9 +10,5 @@
 
 @interface ViewController : UIViewController
 
-// 获取密码
-@property(nonatomic,strong)NSString *password;
-- (NSString *)getPassword;
-
 @end
 
