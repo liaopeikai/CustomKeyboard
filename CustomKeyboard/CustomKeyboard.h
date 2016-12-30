@@ -11,7 +11,7 @@
 // 为block重新起一个名字PasswordBlock,它有一个id类型的参数password
 typedef void (^PasswordBlock) (id password);
 
-@interface CustomKeyboard : UITextView
+@interface CustomKeyboard : UIView
 
 /**
  单例模式

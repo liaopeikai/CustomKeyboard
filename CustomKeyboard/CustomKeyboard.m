@@ -13,17 +13,20 @@
 
 @interface CustomKeyboard ()
 
+@property(nonatomic, strong) UIInputViewController *inputVC;
+
 @property(nonatomic,strong)NSString *password;
 
-@property(nonatomic,strong)UITextView *keyView;
-@property(nonatomic,strong)UITextView *tempKeyView;
+@property(nonatomic,strong)UIView *keyView;
+@property(nonatomic,strong)UIView *tempKeyView;
 
 @property(nonatomic,strong)NSMutableArray *letterArr;
 @property(nonatomic,strong)NSMutableArray *numberArr;
 
 @property(nonatomic, strong)PasswordBlock passwordBlock;
 
-@property (nonatomic, assign) CGRect keyViewFrame;
+@property (nonatomic, assign) NSInteger currentOrient;
+@property (nonatomic, assign) NSInteger notificationCount;
 
 @end
 
@@ -34,6 +37,37 @@ NSInteger letterState = 1;
 // 循环切换系统键盘一次后再切换为自定义键盘
 NSInteger switchNum = 0;
 
+#pragma mark - 懒加载
+- (UIInputViewController *)inputVC {
+    if (!_inputVC) {
+        _inputVC = [[UIInputViewController alloc] init];
+    }
+    return _inputVC;
+}
+
+- (UIView *)keyView {
+    if (_keyView == nil) {
+        _keyView = [[UIView alloc] init];
+    }
+    return _keyView;
+}
+
+- (UIView *)tempKeyView {
+    if (!_tempKeyView) {
+        _tempKeyView = [[UIView alloc] init];
+    }
+    return _tempKeyView;
+}
+
+
+#pragma mark ---- 外部接口
+- (void)returnPasswordBlock:(PasswordBlock)block {
+    self.passwordBlock = block;
+}
+
+- (NSString *)getPassword {
+    return self.password;
+}
 // 单例
 static CustomKeyboard * _instance = nil;
 + (instancetype)shareInstance
@@ -45,21 +79,6 @@ static CustomKeyboard * _instance = nil;
     return _instance;
 }
 
-#pragma mark - 懒加载
-- (UITextView *)keyView {
-    if (_keyView == nil) {
-        _keyView = [[UITextView alloc] init];
-    }
-    return _keyView;
-}
-
-- (UITextView *)tempKeyView {
-    if (!_tempKeyView) {
-        _tempKeyView = [[UITextView alloc] init];
-    }
-    return _tempKeyView;
-}
-
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -68,32 +87,133 @@ static CustomKeyboard * _instance = nil;
 - (instancetype)init{
     self = [super init];
     if (self) {
+        // 注册键盘弹起通知
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShow:) name:UIKeyboardDidShowNotification object:nil];
+        // 注册屏幕旋转通知
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientChange:) name:UIDeviceOrientationDidChangeNotification object:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(inputModeDidChange:) name:UITextInputCurrentInputModeDidChangeNotification object:nil];
+        // 注册切换输入法通知
+//        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(inputModeDidChange:) name:UITextInputCurrentInputModeDidChangeNotification object:nil];
+        
+        self.currentOrient = [UIApplication  sharedApplication].statusBarOrientation;
     }
     return self;
 }
 
-// 外部获取密码接口
-- (void)returnPasswordBlock:(PasswordBlock)block {
-    self.passwordBlock = block;
-}
 
-- (NSString *)getPassword {
-    return self.password;
-}
-
-#pragma mark ---- 键盘弹起和屏幕旋转
+#pragma mark ---- 键盘弹起 & 屏幕旋转 & 切换键盘
 - (void)keyboardWillShow:(NSNotification *)notification {
-    // 系统键盘弹起会回调多次（这里是回调2次），从而接收都多次通知。设置_instance结合单例即可只执行一次
-    if (_instance != nil) {
+    // 系统键盘弹起回调2次
+    if (self.notificationCount == 1) {
+        [self.keyView removeFromSuperview];
         [self keyboardDidShow];
-        _instance = nil;
+    }else {
+        [self.keyView removeFromSuperview];
+        self.notificationCount = 1;
     }
 }
 
 - (void)orientChange:(NSNotification *)notification {
+    UIInterfaceOrientation currentOrient = [UIApplication  sharedApplication].statusBarOrientation;
+    if (self.currentOrient != currentOrient) {
+        self.currentOrient = currentOrient;
+        [self.keyView removeFromSuperview];
+        [self setKeyboard];
+    }
+    self.notificationCount = 0;
+}
+
+//- (void)inputModeDidChange:(NSNotification *)notification {
+//    [self.keyView removeFromSuperview];
+//    if (switchNum == 3) {
+//        switchNum = 0;
+//    }
+//    switchNum ++;
+//}
+
+// 按钮的点击事件
+- (void)clickAction:(UIButton *)sender{
+    [sender setHighlighted:YES];
+    if (!(sender.tag == 7 || sender.tag == 6 || sender.tag == 5 || sender.tag == 4 || sender.tag == 3 || sender.tag == 2 || sender.tag == 1 || sender.tag == 0)) {
+        [self pressedEvent:sender];
+        if (self.password == nil) {
+            self.password = sender.titleLabel.text;
+        }else{
+            self.password = [NSString stringWithFormat:@"%@%@", _password, sender.titleLabel.text];
+        }
+        // block 回调时机
+        if (self.passwordBlock != nil ) {
+            self.passwordBlock(self.password);
+        }
+    }
+    if (sender.tag == 0) {// 取消事件
+        [self.inputVC dismissKeyboard];
+    }
+    if (sender.tag == 1) {// 完成事件
+        [self.inputVC dismissKeyboard];
+    }
+    if (sender.tag == 2) {
+        if (letterState) {// 大写
+            [self.keyView removeFromSuperview];
+            [self capitalLetter];
+        }
+        else {// 小写
+            [self.keyView removeFromSuperview];
+            [self lowercaseLetter];
+        }
+    }
+    if (sender.tag == 3) {// 删除事件
+        if ([_password length] != 0) {
+            _password = [_password substringToIndex:[_password length] - 1];
+            // block 回调时机
+            if (self.passwordBlock != nil ) {
+                self.passwordBlock(self.password);
+            }
+        }
+    }
+    if (sender.tag == 4) {// 纯数字键盘
+        
+    }
+    if (sender.tag == 5) {// 切换系统键盘
+        [self.keyView removeFromSuperview];
+    }
+    if (sender.tag == 6) {// 空格键
+        if (self.password == nil) {
+            self.password = @" ";
+        }else{
+            _password = [NSString stringWithFormat:@"%@%@", _password, @" "];
+        }
+        // block 回调时机
+        if (self.passwordBlock != nil ) {
+            self.passwordBlock(self.password);
+        }
+    }
+    if (sender.tag == 7) {// 符号键盘
+        
+    }
+}
+
+// 小写
+- (void)lowercaseLetter {
+    for (NSInteger i = 0; i < 26; i ++) {
+        NSString *lowercaseLetter = [self.letterArr objectAtIndex:i];
+        [self.letterArr removeObjectAtIndex:i];
+        lowercaseLetter = [lowercaseLetter stringByReplacingCharactersInRange:NSMakeRange(0,1) withString:[[lowercaseLetter substringToIndex:1] lowercaseString]];
+        [self.letterArr insertObject:lowercaseLetter atIndex:i];
+    }
+    letterState = 1;
+    [self setKeyboard];
+}
+
+
+// 大写
+- (void)capitalLetter {
+    for (NSInteger i = 0; i < 26; i ++) {
+        NSString *capitalLetter = [self.letterArr objectAtIndex:i];
+        [self.letterArr removeObjectAtIndex:i];
+        capitalLetter = [capitalLetter stringByReplacingCharactersInRange:NSMakeRange(0,1) withString:[[capitalLetter substringToIndex:1] uppercaseString]];
+        [self.letterArr insertObject:capitalLetter atIndex:i];
+    }
+    letterState = 0;
     [self setKeyboard];
 }
 
@@ -102,7 +222,7 @@ static CustomKeyboard * _instance = nil;
 - (void)setView {
     self.keyView = nil;
     
-    self.tempKeyView = (UITextView *)[self getKeyboardView];
+    self.tempKeyView = [self getKeyboardView];
     self.keyView.frame = self.tempKeyView.frame;
     self.keyView.backgroundColor = [UIColor grayColor];
     [self.tempKeyView addSubview:self.keyView];
@@ -335,91 +455,6 @@ static CustomKeyboard * _instance = nil;
     [self.keyView addSubview:symbolBtn];
     
 }
-
-// 按钮的点击事件
-- (void)clickAction:(UIButton *)sender{
-    [sender setHighlighted:YES];
-    if (!(sender.tag == 7 || sender.tag == 6 || sender.tag == 5 || sender.tag == 4 || sender.tag == 3 || sender.tag == 2 || sender.tag == 1 || sender.tag == 0)) {
-        [self pressedEvent:sender];
-        if (self.password == nil) {
-            self.password = sender.titleLabel.text;
-        }else{
-            self.password = [NSString stringWithFormat:@"%@%@", _password, sender.titleLabel.text];
-        }
-        // block 回调时机
-        if (self.passwordBlock != nil ) {
-            self.passwordBlock(self.password);
-        }
-    }
-    if (sender.tag == 0) {// 取消事件
-        [self.keyView endEditing:YES];
-    }
-    if (sender.tag == 1) {// 完成事件
-        NSLog(@"返回密码：%@", self.password);
-    }
-    if (sender.tag == 2) {
-        if (letterState) {// 大写
-            for (NSInteger i = 0; i < 26; i ++) {
-                NSString *capitalLetter = [self.letterArr objectAtIndex:i];
-                [self.letterArr removeObjectAtIndex:i];
-                capitalLetter = [capitalLetter stringByReplacingCharactersInRange:NSMakeRange(0,1) withString:[[capitalLetter substringToIndex:1] uppercaseString]];
-                [self.letterArr insertObject:capitalLetter atIndex:i];
-            }
-            letterState = 0;
-            [self setKeyboard];
-        }
-        else {// 小写
-            for (NSInteger i = 0; i < 26; i ++) {
-                NSString *capitalLetter = [self.letterArr objectAtIndex:i];
-                [self.letterArr removeObjectAtIndex:i];
-                capitalLetter = [capitalLetter stringByReplacingCharactersInRange:NSMakeRange(0,1) withString:[[capitalLetter substringToIndex:1] lowercaseString]];
-                [self.letterArr insertObject:capitalLetter atIndex:i];
-            }
-            letterState = 1;
-            [self setKeyboard];
-        }
-    }
-    if (sender.tag == 3) {// 删除事件
-        if ([_password length] != 0) {
-            _password = [_password substringToIndex:[_password length] - 1];
-            // block 回调时机
-            if (self.passwordBlock != nil ) {
-                self.passwordBlock(self.password);
-            }
-        }
-    }
-    if (sender.tag == 4) {// 纯数字键盘
-        
-    }
-    if (sender.tag == 5) {// 切换系统键盘
-//        [self.keyView removeFromSuperview];
-    }
-    if (sender.tag == 6) {// 空格键
-        if (self.password == nil) {
-            self.password = @" ";
-        }else{
-            _password = [NSString stringWithFormat:@"%@%@", _password, @" "];
-        }
-        // block 回调时机
-        if (self.passwordBlock != nil ) {
-            self.passwordBlock(self.password);
-        }
-    }
-    if (sender.tag == 7) {// 符号键盘
-        
-    }
-}
-
-- (void)inputModeDidChange:(NSNotification *)notification {
-    [self.keyView removeFromSuperview];
-    if (switchNum == 2) {
-        [self keyboardDidShow];
-        switchNum = 0;
-    }
-    NSLog(@"switchNum:%ld", switchNum);
-    switchNum ++;
-}
-
 
 #pragma mark --- 按钮点击放大效果
 // 放大按钮
