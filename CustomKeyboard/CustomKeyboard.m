@@ -7,26 +7,31 @@
 //
 
 #import "CustomKeyboard.h"
+//#import "SymbolsCollectionViewCell.h"
+
+//#define SCREEN_WIDTH ([[UIScreen mainScreen] bounds].size.width)
+//#define SCREEN_HEIGHT ([[UIScreen mainScreen] bounds].size.height)
 
 #define Kscale 3.0       // 按钮放大系数
 #define Kduration 0.2    // 动画持续时间
 
-@interface CustomKeyboard ()
+@interface CustomKeyboard ()<UICollectionViewDelegate, UICollectionViewDataSource>
 
 @property(nonatomic, strong) UIInputViewController *inputVC;
 
-@property(nonatomic,strong)NSString *password;
+@property(nonatomic,strong) NSString *password;
 
-@property(nonatomic,strong)UIView *keyView;
-@property(nonatomic,strong)UIView *tempKeyView;
+@property(nonatomic,strong) UIView *keyView;
+@property(nonatomic,strong) UIView *tempKeyView;
+@property(nonatomic, strong) UICollectionView *collectionView;
 
-@property(nonatomic,strong)NSMutableArray *letterArr;
-@property(nonatomic,strong)NSMutableArray *numberArr;
+@property(nonatomic,strong) NSMutableArray *letterArr;
+@property(nonatomic,strong) NSMutableArray *numberArr;
+@property(nonatomic, strong) NSArray *symbolArray;
 
-@property(nonatomic, strong)PasswordBlock passwordBlock;
+@property(nonatomic, strong) PasswordBlock passwordBlock;
 
 @property (nonatomic, assign) NSInteger currentOrient;
-@property (nonatomic, assign) NSInteger notificationCount;
 
 @end
 
@@ -34,10 +39,19 @@
 @implementation CustomKeyboard
 // 大小写状态(默认1:小写)
 NSInteger letterState = 1;
+// 符号与数字切换（默认1:数字）
+NSInteger symbolState = 1;
+// 系统键盘弹起通知次数
+NSInteger notificationCount = 0;
 // 循环切换系统键盘一次后再切换为自定义键盘
 NSInteger switchNum = 0;
+// 键盘标识，判断是自定义默认键盘时，横竖屏切换才重绘
+NSInteger customKeyboardID = 1;
+// 纯数字键盘标识，判断是纯数字键盘时，横竖屏切换才重绘
+NSInteger numberKeyboardID = 1;
 
 #pragma mark - 懒加载
+
 - (UIInputViewController *)inputVC {
     if (!_inputVC) {
         _inputVC = [[UIInputViewController alloc] init];
@@ -87,14 +101,15 @@ static CustomKeyboard * _instance = nil;
 - (instancetype)init{
     self = [super init];
     if (self) {
-        // 注册键盘弹起通知
+        // 监听键盘弹起通知
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShow:) name:UIKeyboardDidShowNotification object:nil];
-        // 注册屏幕旋转通知
+        // 监听屏幕旋转通知
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientChange:) name:UIDeviceOrientationDidChangeNotification object:nil];
-        // 注册切换输入法通知
-//        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(inputModeDidChange:) name:UITextInputCurrentInputModeDidChangeNotification object:nil];
+        // 监听切换输入法通知
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(inputModeDidChange:) name:UITextInputCurrentInputModeDidChangeNotification object:nil];
         
         self.currentOrient = [UIApplication  sharedApplication].statusBarOrientation;
+        
     }
     return self;
 }
@@ -102,38 +117,46 @@ static CustomKeyboard * _instance = nil;
 
 #pragma mark ---- 键盘弹起 & 屏幕旋转 & 切换键盘
 - (void)keyboardWillShow:(NSNotification *)notification {
-    // 系统键盘弹起回调2次
-    if (self.notificationCount == 1) {
-        [self.keyView removeFromSuperview];
-        [self keyboardDidShow];
-    }else {
-        [self.keyView removeFromSuperview];
-        self.notificationCount = 1;
+    // 系统键盘弹起回调2次，并且系统键盘的切换也会发出键盘弹起通知
+    if (switchNum == 1) {
+        if (notificationCount == 1 && customKeyboardID == 1) {
+            [self.keyView removeFromSuperview];
+            [self keyboardDidShow];
+        }else {
+            [self.keyView removeFromSuperview];
+            notificationCount = 1;
+        }
+        if (numberKeyboardID == 0) {
+            [self.keyView removeFromSuperview];
+            [self setNumberKeyboard];
+        }
     }
 }
 
 - (void)orientChange:(NSNotification *)notification {
     UIInterfaceOrientation currentOrient = [UIApplication  sharedApplication].statusBarOrientation;
-    if (self.currentOrient != currentOrient) {
+    if (self.currentOrient != currentOrient && customKeyboardID == 1) {
         self.currentOrient = currentOrient;
         [self.keyView removeFromSuperview];
         [self setKeyboard];
     }
-    self.notificationCount = 0;
+    if (numberKeyboardID == 0) {
+        [self.keyView removeFromSuperview];
+        [self setNumberKeyboard];
+    }
+    notificationCount = 1;
 }
 
-//- (void)inputModeDidChange:(NSNotification *)notification {
-//    [self.keyView removeFromSuperview];
-//    if (switchNum == 3) {
-//        switchNum = 0;
-//    }
-//    switchNum ++;
-//}
+- (void)inputModeDidChange:(NSNotification *)notification {
+    if (switchNum == 4) {
+        customKeyboardID = 1;
+        switchNum = 0;
+    }
+    switchNum ++;
+}
 
-// 按钮的点击事件
 - (void)clickAction:(UIButton *)sender{
-    [sender setHighlighted:YES];
-    if (!(sender.tag == 7 || sender.tag == 6 || sender.tag == 5 || sender.tag == 4 || sender.tag == 3 || sender.tag == 2 || sender.tag == 1 || sender.tag == 0)) {
+    if (!(sender.tag == 8 || sender.tag == 7 || sender.tag == 6 || sender.tag == 5 || sender.tag == 4 || sender.tag == 3 || sender.tag == 2 || sender.tag == 1 || sender.tag == 0)) {
         [self pressedEvent:sender];
         if (self.password == nil) {
             self.password = sender.titleLabel.text;
@@ -171,9 +194,13 @@ static CustomKeyboard * _instance = nil;
         }
     }
     if (sender.tag == 4) {// 纯数字键盘
+        numberKeyboardID = 0;
+        [self.keyView removeFromSuperview];
+        [self setNumberKeyboard];
         
     }
     if (sender.tag == 5) {// 切换系统键盘
+        customKeyboardID = 0;
         [self.keyView removeFromSuperview];
     }
     if (sender.tag == 6) {// 空格键
@@ -188,7 +215,20 @@ static CustomKeyboard * _instance = nil;
         }
     }
     if (sender.tag == 7) {// 符号键盘
-        
+        if (symbolState) {
+            [self.keyView removeFromSuperview];
+            symbolState = 0;
+            [self setSymbolKeyboard];
+        }else {
+            [self.keyView removeFromSuperview];
+            symbolState = 1;
+            [self setKeyboard];
+        }
+    }
+    if (sender.tag == 8) {// 由纯数字键盘返回原来键盘
+        [self.keyView removeFromSuperview];
+        numberKeyboardID = 1;
+        [self setKeyboard];
     }
 }
 
@@ -235,7 +275,7 @@ static CustomKeyboard * _instance = nil;
     [self setKeyboard];
 }
 
-#pragma mark -自定义控件及布局
+#pragma mark ---- 自定义控件及布局
 - (void)setKeyboard {
     [self setView];
     // 键盘每行按键的 行高度keyboardLH、行宽度keyboardLW
@@ -291,23 +331,45 @@ static CustomKeyboard * _instance = nil;
     titleLb.textAlignment = NSTextAlignmentCenter;
     [self.keyView addSubview:titleLb];
     
-    // 第二行 数字
-    for (NSInteger i = 0; i < 10; i ++) {
-        UIButton *numberBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-        numberBtn.frame = CGRectMake(5+(keyboardLW-55)/10.0*i+5*i, keyboardLH+4, keyWithNumLetterW, keyWithNumLetterH);
-        [numberBtn setTitle:self.numberArr[indexWithNumber] forState:UIControlStateNormal];
-        numberBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
-        [numberBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
-        [numberBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
-        numberBtn.backgroundColor = keyColor;
-        numberBtn.layer.cornerRadius = keyCornerRadius;
-        numberBtn.tag = 100 + indexWithNumber;
-        indexWithNumber ++;
-        [numberBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
+    if (symbolState == 0) { // 符号行
         
-        [self.keyView addSubview:numberBtn];
+        UICollectionViewFlowLayout *flowLayout = [[UICollectionViewFlowLayout alloc] init];
+        [flowLayout setScrollDirection:UICollectionViewScrollDirectionHorizontal];
+        flowLayout.itemSize = CGSizeMake(keyWithNumLetterW, keyWithNumLetterH);
         
+        CGRect collectionViewFrame = CGRectMake(5, keyboardLH+4, keyboardLW-10, keyWithNumLetterH);
+        
+        self.collectionView = [[UICollectionView alloc] initWithFrame:collectionViewFrame collectionViewLayout:flowLayout];
+        
+        self.collectionView.showsHorizontalScrollIndicator = NO;
+        self.collectionView.dataSource = self;
+        self.collectionView.delegate = self;
+        self.collectionView.backgroundColor = [UIColor whiteColor];
+        
+        [self.collectionView registerClass:[SymbolsCollectionViewCell class] forCellWithReuseIdentifier:@"symbolsCell"];
+        
+        [self.keyView addSubview:self.collectionView];
+        
+    }else {
+        // 第二行 数字
+        for (NSInteger i = 0; i < 10; i ++) {
+            UIButton *numberBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+            numberBtn.frame = CGRectMake(5+(keyboardLW-55)/10.0*i+5*i, keyboardLH+4, keyWithNumLetterW, keyWithNumLetterH);
+            [numberBtn setTitle:self.numberArr[indexWithNumber] forState:UIControlStateNormal];
+            numberBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
+            [numberBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
+            [numberBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
+            numberBtn.backgroundColor = keyColor;
+            numberBtn.layer.cornerRadius = keyCornerRadius;
+            numberBtn.tag = 100 + indexWithNumber;
+            indexWithNumber ++;
+            [numberBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
+            
+            [self.keyView addSubview:numberBtn];
+            
+        }
     }
+    
     // 第三行 字母
     for (NSInteger i = 0; i < 10; i ++) {
         UIButton *letterBtn = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -383,7 +445,7 @@ static CustomKeyboard * _instance = nil;
     // 第五行 删除键
     UIButton *deleteBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     deleteBtn.frame = CGRectMake(keyboardLW*0.847, keyboardLH*4.0+4, keyWithNumLetterW/2.0+keyWithNumLetterW+5, keyWithOtherH);
-    [deleteBtn setTitle:@"delete" forState:UIControlStateNormal];
+    [deleteBtn setTitle:@"删除" forState:UIControlStateNormal];
     deleteBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
     [deleteBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
     [deleteBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
@@ -398,7 +460,7 @@ static CustomKeyboard * _instance = nil;
     // 第六行 纯数字键盘
     UIButton *numberBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     numberBtn.frame = CGRectMake(5, keyboardLH*5.0+4, keyWithNumLetterW/2.0+keyWithNumLetterW, keyWithOtherH);
-    [numberBtn setTitle:@".?123" forState:UIControlStateNormal];
+    [numberBtn setTitle:@"123" forState:UIControlStateNormal];
     numberBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
     [numberBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
     [numberBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
@@ -448,6 +510,9 @@ static CustomKeyboard * _instance = nil;
     [symbolBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
     [symbolBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
     symbolBtn.backgroundColor = keyColor;
+    if (symbolState == 0) {
+        symbolBtn.backgroundColor = [UIColor greenColor];
+    }
     symbolBtn.layer.cornerRadius = keyCornerRadius;
     symbolBtn.tag = indexWithOther;
     [symbolBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
@@ -456,7 +521,42 @@ static CustomKeyboard * _instance = nil;
     
 }
 
-#pragma mark --- 按钮点击放大效果
+#pragma mark ---- UICollectionView delegate & dataSource
+- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
+    self.symbolArray = [self setSymbol];
+    return self.symbolArray.count;
+}
+
+- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath{
+    SymbolsCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"symbolsCell" forIndexPath:indexPath];
+    
+    cell.symbolsLabel.textColor = [UIColor blackColor];
+    cell.symbolsLabel.text = [self.symbolArray objectAtIndex:indexPath.row];
+    cell.symbolsLabel.textAlignment = NSTextAlignmentCenter;
+    
+    return cell;
+}
+
+- (NSInteger)numberOfSectionsInCollectionView:(UICollectionView *)collectionView{
+    return 1;
+}
+
+- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath{
+    
+    NSString *symbol = self.symbolArray[indexPath.row];
+    if (self.password == nil) {
+        self.password = symbol;
+    }else{
+        self.password = [NSString stringWithFormat:@"%@%@", _password, symbol];
+    }
+    // block 回调时机
+    if (self.passwordBlock != nil ) {
+        self.passwordBlock(self.password);
+    }
+}
+
+
+#pragma mark ---- 按钮点击放大效果
 // 放大按钮
 - (void)pressedEvent:(UIButton *)btn
 {
@@ -507,7 +607,7 @@ static CustomKeyboard * _instance = nil;
 }
 
 
-#pragma mark -随机0~9、字母
+#pragma mark ----- 随机0~9、字母 & 符号
 // 随机数字
 - (NSMutableArray *)setRandomNumber {
     NSArray *temp = [NSArray arrayWithObjects:@"0", @"1", @"2", @"3", @"4", @"5", @"6",@"7", @"8",@"9",nil];
@@ -534,7 +634,125 @@ static CustomKeyboard * _instance = nil;
     }
     return letterArr;
 }
+// 符号数组
+- (NSArray *)setSymbol {
+    NSArray *symbolArray = [NSArray arrayWithObjects: @"%", @".",  @"@", @"?", @"+", @"-", @"=", @"_", @"(" , @")", @",", @"*", @"&", @"^", @"$", @"#", @";", @"!", @"`", @"~", @":", @"\"", @"\"",  @"\\",  @"/", @"[", @"]", @"{", @"}", @"|", @"'", @"<", @">", nil];
+    return symbolArray;
+}
 
 
+#pragma mark ---- 纯数字键盘 & 符号键盘
+- (void)setSymbolKeyboard {
+    [self setKeyboard];
+}
+- (void)setNumberKeyboard {
+    [self setView];
+    // 键盘每行按键的 行高度keyboardLH、行宽度keyboardLW
+    CGFloat firstKeyboardLH = self.keyView.frame.size.height/6.0;
+    CGFloat keyboardLH = (self.keyView.frame.size.height - firstKeyboardLH)/4.0;
+    CGFloat keyboardLW = [UIScreen mainScreen].bounds.size.width;
+    
+    // 按键的颜色、大小
+    UIColor *keyColor = [UIColor whiteColor];
+    UIColor *keyTitleHLightedColor = [UIColor grayColor];
+    UIColor *keyTitleColor = [UIColor blackColor];
+    
+    CGFloat keyWithNumLetterW = (keyboardLW - 8.0) / 3.0;
+    CGFloat keyWithNumLetterH = keyboardLH - 2.0;
+    CGFloat keyWithOtherW = keyboardLW/6.0;
+    CGFloat keyWithOtherH = firstKeyboardLH;
+    
+    // 按键索引值与tag
+    NSInteger indexWithNumber = 0;
+    NSInteger indexWithOther = 0;
+    
+    // 第一行
+    UIButton *cancelBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    cancelBtn.frame = CGRectMake(3, 1, keyWithOtherW, keyWithOtherH);
+    [cancelBtn setTitle:@"返回" forState:UIControlStateNormal];
+    [cancelBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
+    [cancelBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
+    cancelBtn.backgroundColor = keyColor;
+    cancelBtn.tag = 8;
+    [cancelBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
+    [self.keyView addSubview:cancelBtn];
+    
+    UIButton *completeBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    completeBtn.frame = CGRectMake(keyboardLW - keyWithOtherW - 3, 1, keyWithOtherW, keyWithOtherH);
+    [completeBtn setTitle:@"完成" forState:UIControlStateNormal];
+    [completeBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
+    completeBtn.backgroundColor = keyColor;
+    completeBtn.tag = indexWithOther + 1;
+    indexWithOther ++;
+    [completeBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
+    [self.keyView addSubview:completeBtn];
+    
+    UILabel *titleLb = [[UILabel alloc]initWithFrame:CGRectMake(keyWithOtherW + 4, 1, keyboardLW - (keyWithOtherW * 2.0 + 8), keyWithOtherH)];
+    titleLb.text = @"银行安全键盘";
+    titleLb.backgroundColor = keyColor;
+    titleLb.textColor = keyTitleColor;
+    titleLb.layer.masksToBounds = YES;
+    titleLb.textAlignment = NSTextAlignmentCenter;
+    [self.keyView addSubview:titleLb];
+    
+    
+    for (NSInteger j = 0; j < 4; j ++) {
+        for (NSInteger i = 0; i < 3; i ++) {
+            if (j == 3 && (i == 0 || i == 2)) {
+                UIButton *numberBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+                numberBtn.frame = CGRectMake(3+(keyWithNumLetterW+1)*i, (keyWithOtherH+2)+(keyWithNumLetterH+1)*j, keyWithNumLetterW, keyWithNumLetterH);
+                if (i == 0) {
+                    [numberBtn setTitle:@"." forState:UIControlStateNormal];
+                    indexWithOther = 100 + 11; // 0~9 加上 .
+                } else {
+                    [numberBtn setTitle:@"删除" forState:UIControlStateNormal];
+                    indexWithOther = 3;
+                }
+                numberBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
+                [numberBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
+                [numberBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
+                numberBtn.backgroundColor = keyColor;
+                numberBtn.tag = indexWithOther;
+                [numberBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
+                
+                [self.keyView addSubview:numberBtn];
+                
+            } else {
+                UIButton *numberBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+                if (j == 0) {
+                    numberBtn.frame = CGRectMake(3+(keyWithNumLetterW+1)*i, (keyWithOtherH+2), keyWithNumLetterW, keyWithNumLetterH);
+                }else {
+                    numberBtn.frame = CGRectMake(3+(keyWithNumLetterW+1)*i, (keyWithOtherH+2)+(keyWithNumLetterH+1)*j, keyWithNumLetterW, keyWithNumLetterH);
+                }
+                [numberBtn setTitle:self.numberArr[indexWithNumber] forState:UIControlStateNormal];
+                numberBtn.titleLabel.textAlignment = NSTextAlignmentCenter;
+                [numberBtn setTitleColor:keyTitleColor forState:UIControlStateNormal];
+                [numberBtn setTitleColor:keyTitleHLightedColor forState:UIControlStateHighlighted];
+                numberBtn.backgroundColor = keyColor;
+                numberBtn.tag = 100 + indexWithNumber;
+                indexWithNumber ++;
+                [numberBtn addTarget:self action:@selector(clickAction:) forControlEvents:UIControlEventTouchUpInside];
+                
+                [self.keyView addSubview:numberBtn];
+            }
+            
+        }
+    }
+}
 
 @end
+
+@implementation SymbolsCollectionViewCell
+
+- (instancetype)initWithFrame:(CGRect)frame{
+    self = [super initWithFrame:frame];
+    if (self) {
+        _symbolsLabel = [[UILabel alloc] init];
+        _symbolsLabel.frame = CGRectMake(0, 0, frame.size.width, frame.size.height);
+        [self addSubview:_symbolsLabel];
+        
+    }
+    return self;
+}
+@end
+

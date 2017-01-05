@@ -38,3 +38,10 @@ typedef void (^PasswordBlock) (id password);
 
 
 @end
+
+
+// 切换字符的UICollectionViewCell
+@interface SymbolsCollectionViewCell : UICollectionViewCell
+@property(nonatomic, strong) UILabel *symbolsLabel;
+@end
+
